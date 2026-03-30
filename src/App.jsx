@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Lock, Wallet, TrendingDown, Target, 
-  Utensils, ShoppingCart, Coffee, Clock, 
-  PlusCircle, Users, Activity
+  Plus, Minus, TrendingDown, TrendingUp, 
+  Wallet, PieChart as PieChartIcon, Clock, Lock,
+  ChevronDown, Settings
 } from 'lucide-react';
 
 const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
@@ -12,463 +12,305 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [keyInput, setKeyInput] = useState('');
   
-  // App State
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState('home'); // home, stats, history
   
-  // Settings State (Persisted in localStorage)
-  const [partnerA, setPartnerA] = useState(() => localStorage.getItem('partnerA') || 'Partner A');
-  const [partnerB, setPartnerB] = useState(() => localStorage.getItem('partnerB') || 'Partner B');
-  const [incomeA, setIncomeA] = useState(() => Number(localStorage.getItem('incomeA')) || 50000);
-  const [incomeB, setIncomeB] = useState(() => Number(localStorage.getItem('incomeB')) || 50000);
-  const [savingsTarget, setSavingsTarget] = useState(() => Number(localStorage.getItem('savingsTarget')) || 20000);
-  
-  // Form State
+  // Add Form State
+  const [showForm, setShowForm] = useState(false);
+  const [formType, setFormType] = useState('expense'); // 'income' | 'expense'
   const [item, setItem] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('Food');
-  const [paidBy, setPaidBy] = useState(partnerA);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  
-  const [tab, setTab] = useState('dashboard'); // dashboard, add, history, settings
-  const [historyFilter, setHistoryFilter] = useState('All'); // All, This Month, Last 7 Days
 
-  // Update localStorage when settings change
   useEffect(() => {
-    localStorage.setItem('partnerA', partnerA);
-    localStorage.setItem('partnerB', partnerB);
-    localStorage.setItem('incomeA', incomeA);
-    localStorage.setItem('incomeB', incomeB);
-    localStorage.setItem('savingsTarget', savingsTarget);
-    if (![partnerA, partnerB].includes(paidBy)) {
-      setPaidBy(partnerA);
+    if (isAuthenticated) {
+      if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+         fetchData();
+      } else {
+         // Dummy data for visual presentation locally if no backend provided yet
+         setExpenses([
+           { item: 'Lunch', amount: 1500, category: 'Food', date: '2026-03-20', type: 'expense' },
+           { item: 'Salary', amount: 120000, category: 'Income', date: '2026-03-19', type: 'income' },
+           { item: 'Dinner', amount: 2000, category: 'Food', date: '2026-03-19', type: 'expense' },
+           { item: 'Tea', amount: 400, category: 'Drink', date: '2026-03-18', type: 'expense' }
+         ]);
+      }
     }
-  }, [partnerA, partnerB, incomeA, incomeB, savingsTarget]);
+  }, [isAuthenticated]);
 
-  // Fetch initial data
-  const fetchExpenses = async () => {
-    if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') return;
+  const fetchData = async () => {
     setLoading(true);
     try {
       const res = await fetch(GOOGLE_SCRIPT_URL);
       const data = await res.json();
-      setExpenses(data);
+      
+      // Map existing records to the new format (assuming positive amounts but categorizing based on name or category)
+      const formatted = data.map(d => ({
+        ...d,
+        type: d.category === 'Income' ? 'income' : 'expense'
+      }));
+      setExpenses(formatted);
     } catch (error) {
-      console.error("Error fetching data: ", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchExpenses();
-    }
-  }, [isAuthenticated]);
+  const totals = useMemo(() => {
+    const inc = expenses.filter(e => e.type === 'income').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+    const exp = expenses.filter(e => e.type === 'expense').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+    return { income: inc, expense: exp, balance: inc - exp };
+  }, [expenses]);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (keyInput === ACCESS_KEY) {
-      setIsAuthenticated(true);
-    } else {
-      alert("Invalid Access Key");
-    }
+    if (keyInput === ACCESS_KEY) setIsAuthenticated(true);
+    else alert("Invalid Access Key");
   };
 
-  const handleAddExpense = async (e) => {
+  const openForm = (type) => {
+    setFormType(type);
+    setItem('');
+    setAmount('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setShowForm(true);
+  };
+
+  const submitForm = async (e) => {
     e.preventDefault();
     if (!item || !amount) return;
-    
-    const newExpense = {
+
+    const newRecord = {
       timestamp: new Date().toISOString(),
       item,
       amount: Number(amount),
-      category,
-      paidBy,
-      date
+      category: formType === 'income' ? 'Income' : 'Expense', // Simple categorization
+      paidBy: 'Self',
+      date,
+      type: formType
     };
-    
-    // Optimistic UI Update
-    setExpenses(prev => [newExpense, ...prev]);
-    setTab('dashboard');
-    setItem('');
-    setAmount('');
-    
-    if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
-      alert("Please configure your Google Apps Script URL to save data.");
-      return;
-    }
 
-    try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: "POST",
-        body: JSON.stringify(newExpense),
-        headers: { "Content-Type": "text/plain" }
-      });
-      // Optionally re-fetch to ensure sync
-    } catch (error) {
-      console.error("Error saving expense: ", error);
-    }
-  };
+    setExpenses(prev => [newRecord, ...prev].sort((a,b) => new Date(b.date) - new Date(a.date)));
+    setShowForm(false);
 
-  const totalIncome = incomeA + incomeB;
-  
-  // Calculations
-  const calculations = useMemo(() => {
-    const totalExp = expenses.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-    const splitA = expenses.filter(e => e.paidBy === partnerA).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-    const splitB = expenses.filter(e => e.paidBy === partnerB).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-    
-    // Who owes who? (assuming they split 50/50 of the total expenses)
-    const halfExp = totalExp / 2;
-    const aOwes = halfExp - splitA; // if positive, A needs to pay B. if negative, B needs to pay A.
-    
-    // Category Breakdown
-    const categories = expenses.reduce((acc, curr) => {
-      acc[curr.category] = (acc[curr.category] || 0) + Number(curr.amount);
-      return acc;
-    }, {});
-
-    return {
-      totalExp,
-      splitA,
-      splitB,
-      aOwes,
-      categories,
-      balance: totalIncome - totalExp,
-      targetProgress: ((totalIncome - totalExp) / savingsTarget) * 100
-    };
-  }, [expenses, totalIncome, savingsTarget, partnerA, partnerB]);
-
-  const getCategoryIcon = (cat) => {
-    switch(cat) {
-      case 'Food': return <Utensils className="w-5 h-5 text-orange-500" />;
-      case 'Grocery': return <ShoppingCart className="w-5 h-5 text-green-500" />;
-      case 'Drink': return <Coffee className="w-5 h-5 text-brown-500" />;
-      default: return <Activity className="w-5 h-5 text-teal-600" />;
+    if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+      try {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify(newRecord),
+          headers: { "Content-Type": "text/plain" }
+        });
+      } catch (err) { console.error(err); }
     }
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
-          <div className="flex justify-center mb-6">
-            <div className="bg-teal-50 p-4 rounded-full">
-              <Lock className="w-8 h-8 text-teal" />
-            </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-4 font-sans text-slate-800">
+        <div className="bg-white p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] w-full max-w-sm text-center">
+          <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-8 h-8 text-slate-700" />
           </div>
-          <h1 className="text-2xl font-bold text-center text-charcoal mb-2">ඉතුරුම් මිතුරු</h1>
-          <p className="text-gray-500 text-center mb-8">Shared Expense Tracker</p>
+          <h1 className="text-2xl font-extrabold mb-2">Login</h1>
+          <p className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">Secure Vault</p>
           <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <input
-                type="password"
-                placeholder="Enter Access Key"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal bg-gray-50"
-              />
-            </div>
-            <button 
-              type="submit"
-              className="w-full bg-teal text-white py-3 rounded-xl font-medium hover:bg-teal-600 transition duration-200"
-              style={{ backgroundColor: 'var(--color-teal)' }}
-            >
-              Unlock Dashboard
-            </button>
+            <input type="password" value={keyInput} onChange={e => setKeyInput(e.target.value)} placeholder="Access Key" className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-slate-200 text-center font-bold tracking-widest" />
+            <button type="submit" className="w-full bg-[#1e293b] text-white py-4 rounded-2xl font-bold tracking-wider hover:opacity-90 transition">ENTER</button>
           </form>
         </div>
       </div>
     );
   }
 
+  // Helper date formatter: MAR 19
+  const formatDate = (dateString) => {
+    const d = new Date(dateString);
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    return `${months[d.getMonth()]} ${d.getDate()}`;
+  };
+
   return (
-    <div className="min-h-screen pb-20 max-w-md mx-auto bg-gray-50 shadow-sm overflow-hidden relative">
-      {/* Header */}
-      <div className="bg-white px-6 pt-12 pb-6 border-b border-gray-100 sticky top-0 z-10">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-[#f8fafc] font-sans pb-24 relative">
+      <div className="max-w-md mx-auto pt-8 px-5">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-xl font-bold text-charcoal">ඉතුරුම් මිතුරු</h1>
-            <p className="text-sm text-gray-500">Shared Budget</p>
-          </div>
-          <div className="bg-sage-light text-sage-dark p-2 rounded-full cursor-pointer hover:bg-sage transition" onClick={fetchExpenses}>
-            <Activity className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            <h1 className="text-xl font-extrabold text-[#1e293b]">ඉතුරුම් මිතුරු</h1>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="p-6">
-        {tab === 'dashboard' && (
-          <div className="space-y-6 animate-fade-in">
+        {tab === 'home' && (
+          <div className="animate-[fadeIn_0.3s_ease-out]">
             {/* Balance Card */}
-            <div className="bg-gradient-to-br from-teal-dark to-teal text-white rounded-3xl p-6 shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 -mt-4 -mr-4 bg-white opacity-10 w-24 h-24 rounded-full blur-xl"></div>
-              <p className="text-teal-light text-sm font-medium mb-1">Total Balance</p>
-              <h2 className="text-3xl font-bold font-mono tracking-tight mb-4">Rs. {calculations.balance.toLocaleString()}</h2>
-              <div className="flex items-center space-x-2 text-sm text-teal-100 bg-black bg-opacity-20 inline-flex px-3 py-1.5 rounded-full">
-                <Target className="w-4 h-4" />
-                <span>Goal: Rs. {savingsTarget.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Budget Progress */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-50">
-              <div className="flex justify-between text-sm mb-3">
-                <span className="text-gray-500 font-medium">Budget Used</span>
-                <span className="font-bold text-teal">{((calculations.totalExp / totalIncome) * 100).toFixed(1)}%</span>
-              </div>
-              <progress 
-                value={calculations.totalExp} 
-                max={totalIncome} 
-                className="w-full h-3 rounded-full overflow-hidden" 
-              />
-              <div className="flex justify-between mt-3 text-xs text-gray-400">
-                <span>Total Budget: {totalIncome.toLocaleString()}</span>
-                <span>Expenses: {calculations.totalExp.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Split View */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-50">
-              <h3 className="text-sm font-bold text-charcoal mb-4 border-b border-gray-100 pb-2">Who owes who?</h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="bg-gray-50 p-3 rounded-xl">
-                  <p className="text-xs text-gray-500 mb-1">{partnerA} Paid</p>
-                  <p className="font-bold text-sm text-charcoal">Rs. {calculations.splitA.toLocaleString()}</p>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-xl">
-                  <p className="text-xs text-gray-500 mb-1">{partnerB} Paid</p>
-                  <p className="font-bold text-sm text-charcoal">Rs. {calculations.splitB.toLocaleString()}</p>
-                </div>
-              </div>
-              <div className="bg-teal-50 p-3 rounded-xl flex items-center justify-between">
-                <span className="text-xs font-medium text-teal-dark">Settlement (50/50 Split)</span>
-                <span className="font-bold text-sm text-teal">
-                  {calculations.aOwes > 0 
-                    ? `${partnerA} owes Rs. ${calculations.aOwes.toLocaleString()}` 
-                    : calculations.aOwes < 0 
-                      ? `${partnerB} owes Rs. ${Math.abs(calculations.aOwes).toLocaleString()}` 
-                      : 'All settled up!'}
-                </span>
-              </div>
-            </div>
-
-            {/* Category Breakdown */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-50">
-              <h3 className="text-sm font-bold text-charcoal mb-4">Spending by Category</h3>
-              <div className="space-y-3">
-                {Object.entries(calculations.categories).map(([cat, amt]) => (
-                  <div key={cat}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-medium text-gray-600">{cat}</span>
-                      <span className="font-bold text-gray-800">Rs. {amt.toLocaleString()}</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5">
-                      <div className="bg-teal h-1.5 rounded-full transition-all duration-500" style={{ width: `${(amt / calculations.totalExp) * 100}%`, backgroundColor: cat === 'Food' ? '#f97316' : cat === 'Grocery' ? '#22c55e' : cat === 'Drink' ? '#b45309' : '#0d9488' }}></div>
-                    </div>
-                  </div>
-                ))}
-                {Object.keys(calculations.categories).length === 0 && <p className="text-xs text-gray-400">No data to display.</p>}
-              </div>
-            </div>
-            
-            {/* Recent list summary */}
-            <div>
-               <div className="flex justify-between items-center mb-4">
-                 <h3 className="font-bold text-charcoal">Recent Activity</h3>
-                 <button onClick={() => setTab('history')} className="text-teal text-sm font-medium">View All</button>
-               </div>
-               <div className="space-y-3">
-                 {expenses.slice(0, 3).map((exp, i) => (
-                   <div key={i} className="bg-white p-4 rounded-2xl shadow-sm flex items-center justify-between border border-gray-50">
-                     <div className="flex items-center space-x-3">
-                       <div className="bg-gray-50 p-2 rounded-xl">
-                         {getCategoryIcon(exp.category)}
-                       </div>
-                       <div>
-                         <p className="font-medium text-sm text-charcoal">{exp.item}</p>
-                         <p className="text-xs text-gray-400">{new Date(exp.date).toLocaleDateString()} • {exp.paidBy}</p>
-                       </div>
-                     </div>
-                     <span className="font-bold text-sm text-red-500">-Rs.{exp.amount}</span>
-                   </div>
-                 ))}
-                 {expenses.length === 0 && <p className="text-center text-sm text-gray-400 py-4">No recent expenses logged.</p>}
-               </div>
-            </div>
-          </div>
-        )}
-
-        {tab === 'add' && (
-          <div className="space-y-6 animate-fade-in">
-            <h2 className="text-2xl font-bold text-charcoal mb-6">Log Expense</h2>
-            <form onSubmit={handleAddExpense} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1.5">What did you buy?</label>
-                <input required type="text" value={item} onChange={e => setItem(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 outline-none focus:ring-teal-light" placeholder="e.g. Dinner at Cafe" />
-              </div>
+            <div className="bg-white rounded-[32px] p-7 shadow-[0_12px_40px_rgba(0,0,0,0.03)] mb-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
               
+              <p className="text-slate-500 text-xs font-bold tracking-widest uppercase mb-1">Available Balance</p>
+              <h1 className="text-4xl font-extrabold text-[#1e293b] mb-8">Rs. {totals.balance.toLocaleString()}</h1>
+              
+              <div className="h-px bg-slate-100 mb-6 w-full"></div>
+              
+              <div className="flex justify-between items-center relative z-10">
+                <div className="w-1/2">
+                  <div className="flex items-center space-x-2 mb-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#10b981]"></div>
+                    <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Total Income</span>
+                  </div>
+                  <p className="text-[17px] font-extrabold text-[#10b981]">Rs. {totals.income.toLocaleString()}</p>
+                </div>
+                
+                <div className="w-1/2 pl-4 border-l border-slate-100">
+                  <div className="flex items-center space-x-2 mb-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></div>
+                    <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Total Expenses</span>
+                  </div>
+                  <p className="text-[17px] font-extrabold text-[#ef4444]">Rs. {totals.expense.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly / Custom Stats Card */}
+            <div className="bg-white rounded-[32px] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.02)] mb-6 border border-slate-50">
+              <div className="flex justify-between items-center mb-5">
+                <div className="bg-slate-50 flex p-1 rounded-full">
+                  <button className="px-5 py-2 rounded-full bg-white shadow-sm text-xs font-bold text-indigo-600 tracking-wide uppercase">Monthly</button>
+                  <button className="px-5 py-2 rounded-full text-xs font-bold text-slate-500 tracking-wide uppercase">Custom</button>
+                </div>
+                <div className="bg-slate-50 px-4 py-2 rounded-full flex items-center space-x-2 cursor-pointer">
+                  <span className="text-xs font-extrabold text-slate-700">Mar 2026</span>
+                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600 block mb-1.5">Amount (Rs)</label>
-                  <input required type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 outline-none focus:ring-teal-light" placeholder="0.00" />
+                <div className="bg-[#ecfdf5] border border-[#d1fae5] rounded-3xl p-5">
+                  <p className="text-[10px] font-bold text-[#059669] tracking-widest uppercase mb-1">Income</p>
+                  <h3 className="text-xl font-extrabold text-[#059669]">Rs. {totals.income.toLocaleString()}</h3>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600 block mb-1.5">Date</label>
-                  <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 outline-none focus:ring-teal-light" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1.5">Category</label>
-                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 outline-none focus:ring-teal-light">
-                  <option value="Food">Food / Dining</option>
-                  <option value="Drink">Drinks / Coffee</option>
-                  <option value="Grocery">Groceries</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-600 block mb-1.5">Who Paid?</label>
-                <div className="flex space-x-3">
-                  <button type="button" onClick={() => setPaidBy(partnerA)} className={`flex-1 py-3 rounded-xl font-medium transition ${paidBy === partnerA ? 'bg-teal text-white border-transparent' : 'bg-white text-gray-600 border border-gray-200'}`} style={paidBy === partnerA ? {backgroundColor: 'var(--color-teal)'} : {}}>
-                    {partnerA}
-                  </button>
-                  <button type="button" onClick={() => setPaidBy(partnerB)} className={`flex-1 py-3 rounded-xl font-medium transition ${paidBy === partnerB ? 'bg-sage-dark text-white border-transparent' : 'bg-white text-gray-600 border border-gray-200'}`} style={paidBy === partnerB ? {backgroundColor: 'var(--color-sage-dark)'} : {}}>
-                    {partnerB}
-                  </button>
+                <div className="bg-[#fff1f2] border border-[#ffe4e6] rounded-3xl p-5">
+                  <p className="text-[10px] font-bold text-[#e11d48] tracking-widest uppercase mb-1">Expenses</p>
+                  <h3 className="text-xl font-extrabold text-[#e11d48]">Rs. {totals.expense.toLocaleString()}</h3>
                 </div>
               </div>
+            </div>
 
-              <button type="submit" className="w-full mt-4 py-3.5 rounded-xl text-white font-bold shadow-md hover:opacity-90 transition active:scale-95" style={{backgroundColor: 'var(--color-teal)'}}>
-                Save Expense
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <button onClick={() => openForm('income')} className="bg-[#ecfdf5] border border-[#d1fae5] rounded-[32px] p-6 flex flex-col items-center justify-center transition-transform hover:scale-95 active:scale-90">
+                <div className="w-14 h-14 rounded-full bg-[#d1fae5] flex items-center justify-center mb-4">
+                  <Plus className="w-7 h-7 text-[#059669]" />
+                </div>
+                <span className="text-[#059669] text-sm font-extrabold tracking-widest uppercase">INCOME</span>
               </button>
-            </form>
+              
+              <button onClick={() => openForm('expense')} className="bg-[#fff1f2] border border-[#ffe4e6] rounded-[32px] p-6 flex flex-col items-center justify-center transition-transform hover:scale-95 active:scale-90">
+                <div className="w-14 h-14 rounded-full bg-[#ffe4e6] flex items-center justify-center mb-4">
+                  <Minus className="w-7 h-7 text-[#e11d48]" />
+                </div>
+                <span className="text-[#e11d48] text-sm font-extrabold tracking-widest uppercase">EXPENSE</span>
+              </button>
+            </div>
           </div>
         )}
 
         {tab === 'history' && (
-          <div className="space-y-4 animate-fade-in pb-10">
-            <h2 className="text-xl font-bold text-charcoal mb-2">Expense History</h2>
-            
-            {/* Filter */}
-            <div className="flex space-x-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-              {['All', 'This Month', 'Last 7 Days'].map(filter => (
-                <button 
-                  key={filter}
-                  onClick={() => setHistoryFilter(filter)} 
-                  className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${historyFilter === filter ? 'bg-teal text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                  style={historyFilter === filter ? { backgroundColor: 'var(--color-teal)' } : {}}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-
+          <div className="animate-[fadeIn_0.3s_ease-out]">
+            <h2 className="text-xl font-extrabold text-slate-800 mb-6">Transactions</h2>
             <div className="space-y-3">
-              {expenses.filter(exp => {
-                if (historyFilter === 'All') return true;
-                const expDate = new Date(exp.date);
-                const today = new Date();
-                if (historyFilter === 'This Month') {
-                  return expDate.getMonth() === today.getMonth() && expDate.getFullYear() === today.getFullYear();
-                }
-                if (historyFilter === 'Last 7 Days') {
-                  const sevenDaysAgo = new Date();
-                  sevenDaysAgo.setDate(today.getDate() - 7);
-                  return expDate >= sevenDaysAgo;
-                }
-                return true;
-              }).map((exp, i) => (
-                <div key={i} className="bg-white p-4 rounded-2xl shadow-sm flex items-center justify-between border border-gray-50">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-gray-50 p-2 rounded-xl">
-                      {getCategoryIcon(exp.category)}
+              {expenses.map((exp, i) => (
+                <div key={i} className="bg-white rounded-3xl p-4 flex items-center justify-between shadow-[0_2px_15px_rgba(0,0,0,0.02)] cursor-pointer hover:bg-slate-50 transition border border-slate-50">
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${exp.type === 'income' ? 'bg-[#ecfdf5]' : 'bg-[#fff1f2]'}`}>
+                       {exp.type === 'income' ? (
+                         <TrendingUp className="w-6 h-6 text-[#10b981]" />
+                       ) : (
+                         <TrendingDown className="w-6 h-6 text-[#ef4444]" />
+                       )}
                     </div>
                     <div>
-                      <p className="font-medium text-sm text-charcoal">{exp.item}</p>
-                      <p className="text-xs text-gray-400">{new Date(exp.date).toLocaleDateString()} • {exp.paidBy}</p>
+                      <h3 className="text-slate-800 font-extrabold text-lg capitalize">{exp.item}</h3>
+                      <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">{formatDate(exp.date)}</p>
                     </div>
                   </div>
-                  <span className="font-bold text-sm text-red-500">-Rs.{exp.amount}</span>
+                  <div className="text-right">
+                    <p className={`font-extrabold text-lg ${exp.type === 'income' ? 'text-[#10b981]' : 'text-slate-800'}`}>
+                      {exp.type === 'income' ? '+' : '-'}{Number(exp.amount).toFixed(2)}
+                    </p>
+                    <p className="text-slate-300 text-[9px] font-bold uppercase tracking-widest mt-0.5">Tap to edit</p>
+                  </div>
                 </div>
               ))}
-              {expenses.length === 0 && <p className="text-center text-sm text-gray-400 py-8">No expenses found matching the filter.</p>}
+              {expenses.length === 0 && <p className="text-center font-bold text-slate-400 py-10">No transactions recorded yet.</p>}
             </div>
           </div>
         )}
 
-        {tab === 'settings' && (
-          <div className="space-y-6 animate-fade-in pb-10">
-            <h2 className="text-xl font-bold text-charcoal">App Settings</h2>
+      </div>
+
+      {/* Unified Bottom Nav */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white px-8 py-4 rounded-[32px] shadow-[0_10px_40px_rgba(0,0,0,0.08)] flex space-x-12 z-40 border border-slate-100 items-center justify-center">
+        <button onClick={() => setTab('home')} className={`flex flex-col items-center p-1 transition-colors ${tab === 'home' ? 'text-[#1e293b]' : 'text-slate-300'}`}>
+          <Wallet className="w-7 h-7" />
+        </button>
+        <button onClick={() => setTab('history')} className={`flex flex-col items-center p-1 transition-colors ${tab === 'history' ? 'text-[#1e293b]' : 'text-slate-300'}`}>
+          <Clock className="w-7 h-7" />
+        </button>
+      </div>
+
+      {/* Overlay Add Form */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowForm(false)}></div>
+          <div className="bg-white w-full max-w-md rounded-[40px] p-8 relative z-10 shadow-2xl animate-[slideUp_0.3s_ease-out]">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8"></div>
             
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-50 space-y-4">
-              <h3 className="font-bold text-sm text-teal pb-2 border-b border-gray-100">Partner Details</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Partner A Name</label>
-                  <input type="text" value={partnerA} onChange={e => setPartnerA(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:ring-1 focus:ring-teal" />
+            <h2 className="text-2xl font-extrabold text-slate-800 mb-8 capitalize text-center">
+              Add {formType}
+            </h2>
+
+            <form onSubmit={submitForm} className="space-y-6">
+              <div className="text-center mb-8">
+                <p className="text-xs font-bold text-slate-400 tracking-widest uppercase mb-2">Amount</p>
+                <div className="flex items-center justify-center text-5xl font-extrabold text-slate-800 border-b-2 border-slate-100 pb-3">
+                  <span className="text-2xl mr-2 text-slate-400">Rs.</span>
+                  <input required autoFocus type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-48 bg-transparent text-center outline-none border-none p-0 focus:ring-0" placeholder="0" />
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Partner B Name</label>
-                  <input type="text" value={partnerB} onChange={e => setPartnerB(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:ring-1 focus:ring-teal" />
-                </div>
               </div>
-            </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-50 space-y-4">
-              <h3 className="font-bold text-sm text-teal pb-2 border-b border-gray-100">Monthly Incomes</h3>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">{partnerA}'s Income</label>
-                <input type="number" value={incomeA} onChange={e => setIncomeA(Number(e.target.value))} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:ring-1 focus:ring-teal" />
+                <label className="text-xs font-bold text-slate-400 tracking-widest uppercase ml-4 mb-2 block">Description</label>
+                <input required type="text" value={item} onChange={e => setItem(e.target.value)} className="w-full px-6 py-4 rounded-3xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-slate-200 font-bold" placeholder={formType === 'income' ? 'e.g. Salary' : 'e.g. Dinner, Rent'} />
               </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">{partnerB}'s Income</label>
-                <input type="number" value={incomeB} onChange={e => setIncomeB(Number(e.target.value))} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:ring-1 focus:ring-teal" />
-              </div>
-            </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-50 space-y-4">
-              <h3 className="font-bold text-sm text-teal pb-2 border-b border-gray-100">Goals</h3>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Monthly Savings Target</label>
-                <input type="number" value={savingsTarget} onChange={e => setSavingsTarget(Number(e.target.value))} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:ring-1 focus:ring-teal" />
+                <label className="text-xs font-bold text-slate-400 tracking-widest uppercase ml-4 mb-2 block">Date</label>
+                <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-6 py-4 rounded-3xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-slate-200 font-bold text-slate-600" />
               </div>
-            </div>
+
+              <button type="submit" className={`w-full text-white py-5 rounded-[28px] font-extrabold tracking-widest text-sm uppercase shadow-lg shadow-${formType === 'income' ? 'emerald' : 'rose'}-500/30 transition-transform active:scale-95`} style={{backgroundColor: formType === 'income' ? '#059669' : '#e11d48'}}>
+                Save Record
+              </button>
+            </form>
           </div>
-        )}
-      </div>
-
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-100 px-6 py-3 flex justify-between items-center z-20">
-        <button onClick={() => setTab('dashboard')} className={`flex flex-col items-center p-2 transition ${tab === 'dashboard' ? 'text-teal' : 'text-gray-400'}`}>
-          <Wallet className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">Home</span>
-        </button>
-        <button onClick={() => setTab('history')} className={`flex flex-col items-center p-2 transition ${tab === 'history' ? 'text-teal' : 'text-gray-400'}`}>
-          <Clock className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">History</span>
-        </button>
-        <button onClick={() => setTab('add')} className="flex flex-col items-center justify-center -mt-8 relative z-30 transition hover:scale-105">
-          <div className="bg-teal text-white p-3 rounded-full shadow-lg shadow-teal-500/30" style={{backgroundColor: 'var(--color-teal)'}}>
-            <PlusCircle className="w-7 h-7" />
-          </div>
-        </button>
-        <button onClick={() => setTab('settings')} className={`flex flex-col items-center p-2 transition ${tab === 'settings' ? 'text-teal' : 'text-gray-400'}`}>
-          <Users className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">Settings</span>
-        </button>
-      </div>
+        </div>
+      )}
 
       <style>{`
-        .animate-fade-in {
-          animation: fadeIn 0.3s ease-in-out;
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(5px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
         }
       `}</style>
     </div>
