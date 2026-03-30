@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Plus, Minus, TrendingDown, TrendingUp, 
+import {
+  Plus, Minus, TrendingDown, TrendingUp,
   Wallet, PieChart as PieChartIcon, Clock, Lock,
   ChevronDown, Settings
 } from 'lucide-react';
 
-const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwhO1YR8Ubwy3o97ddTA4D58feYAmIiFv2JxmlO4It7JsRlk-7FA5NnUb5I25nnDZKM/exec';
 const ACCESS_KEY = 'mithuru2026';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [keyInput, setKeyInput] = useState('');
-  
+
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('home'); // home, stats, history
-  
+
   // Add Form State
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState('expense'); // 'income' | 'expense'
@@ -26,10 +26,10 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated) {
       if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
-         fetchData();
+        fetchData();
       } else {
-         // Start with empty data
-         setExpenses([]);
+        // Start with empty data
+        setExpenses([]);
       }
     }
   }, [isAuthenticated]);
@@ -39,7 +39,7 @@ export default function App() {
     try {
       const res = await fetch(GOOGLE_SCRIPT_URL);
       const data = await res.json();
-      
+
       // Map existing records to the new format (assuming positive amounts but categorizing based on name or category)
       const formatted = data.map(d => ({
         ...d,
@@ -87,7 +87,7 @@ export default function App() {
       type: formType
     };
 
-    setExpenses(prev => [newRecord, ...prev].sort((a,b) => new Date(b.date) - new Date(a.date)));
+    setExpenses(prev => [newRecord, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date)));
     setShowForm(false);
 
     if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
@@ -122,14 +122,14 @@ export default function App() {
   // Helper date formatter: MAR 19
   const formatDate = (dateString) => {
     const d = new Date(dateString);
-    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     return `${months[d.getMonth()]} ${d.getDate()}`;
   };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans pb-24 relative">
       <div className="max-w-md mx-auto pt-8 px-5">
-        
+
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -142,12 +142,12 @@ export default function App() {
             {/* Balance Card */}
             <div className="bg-white rounded-[32px] p-7 shadow-[0_12px_40px_rgba(0,0,0,0.03)] mb-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
-              
+
               <p className="text-slate-500 text-xs font-bold tracking-widest uppercase mb-1">Available Balance</p>
               <h1 className="text-4xl font-extrabold text-[#1e293b] mb-8">Rs. {totals.balance.toLocaleString()}</h1>
-              
+
               <div className="h-px bg-slate-100 mb-6 w-full"></div>
-              
+
               <div className="flex justify-between items-center relative z-10">
                 <div className="w-1/2">
                   <div className="flex items-center space-x-2 mb-1.5">
@@ -156,7 +156,7 @@ export default function App() {
                   </div>
                   <p className="text-[17px] font-extrabold text-[#10b981]">Rs. {totals.income.toLocaleString()}</p>
                 </div>
-                
+
                 <div className="w-1/2 pl-4 border-l border-slate-100">
                   <div className="flex items-center space-x-2 mb-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></div>
@@ -200,7 +200,7 @@ export default function App() {
                 </div>
                 <span className="text-[#059669] text-sm font-extrabold tracking-widest uppercase">INCOME</span>
               </button>
-              
+
               <button onClick={() => openForm('expense')} className="bg-[#fff1f2] border border-[#ffe4e6] rounded-[32px] p-6 flex flex-col items-center justify-center transition-transform hover:scale-95 active:scale-90">
                 <div className="w-14 h-14 rounded-full bg-[#ffe4e6] flex items-center justify-center mb-4">
                   <Minus className="w-7 h-7 text-[#e11d48]" />
@@ -219,11 +219,11 @@ export default function App() {
                 <div key={i} className="bg-white rounded-3xl p-4 flex items-center justify-between shadow-[0_2px_15px_rgba(0,0,0,0.02)] cursor-pointer hover:bg-slate-50 transition border border-slate-50">
                   <div className="flex items-center space-x-4">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${exp.type === 'income' ? 'bg-[#ecfdf5]' : 'bg-[#fff1f2]'}`}>
-                       {exp.type === 'income' ? (
-                         <TrendingUp className="w-6 h-6 text-[#10b981]" />
-                       ) : (
-                         <TrendingDown className="w-6 h-6 text-[#ef4444]" />
-                       )}
+                      {exp.type === 'income' ? (
+                        <TrendingUp className="w-6 h-6 text-[#10b981]" />
+                      ) : (
+                        <TrendingDown className="w-6 h-6 text-[#ef4444]" />
+                      )}
                     </div>
                     <div>
                       <h3 className="text-slate-800 font-extrabold text-lg capitalize">{exp.item}</h3>
@@ -261,7 +261,7 @@ export default function App() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowForm(false)}></div>
           <div className="bg-white w-full max-w-md rounded-[40px] p-8 relative z-10 shadow-2xl animate-[slideUp_0.3s_ease-out]">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8"></div>
-            
+
             <h2 className="text-2xl font-extrabold text-slate-800 mb-8 capitalize text-center">
               Add {formType}
             </h2>
@@ -285,7 +285,7 @@ export default function App() {
                 <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-6 py-4 rounded-3xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-slate-200 font-bold text-slate-600" />
               </div>
 
-              <button type="submit" className={`w-full text-white py-5 rounded-[28px] font-extrabold tracking-widest text-sm uppercase shadow-lg shadow-${formType === 'income' ? 'emerald' : 'rose'}-500/30 transition-transform active:scale-95`} style={{backgroundColor: formType === 'income' ? '#059669' : '#e11d48'}}>
+              <button type="submit" className={`w-full text-white py-5 rounded-[28px] font-extrabold tracking-widest text-sm uppercase shadow-lg shadow-${formType === 'income' ? 'emerald' : 'rose'}-500/30 transition-transform active:scale-95`} style={{ backgroundColor: formType === 'income' ? '#059669' : '#e11d48' }}>
                 Save Record
               </button>
             </form>
