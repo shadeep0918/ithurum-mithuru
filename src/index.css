@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-teal: #0f4c5c;
+  --color-teal-light: #2a9d8f;
+  --color-teal-dark: #0a333d;
+  --color-sage: #9cbfa7;
+  --color-sage-light: #e9f5ed;
+  --color-sage-dark: #6e8c78;
+  --color-charcoal: #333333;
+  --color-charcoal-dark: #212121;
+}
+
+@layer base {
+  body {
+    background-color: #f8fafc;
+    color: var(--color-charcoal);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom progress bar styles */
+progress::-webkit-progress-bar {
+  background-color: var(--color-sage-light);
+  border-radius: 9999px;
+}
+progress::-webkit-progress-value {
+  background-color: var(--color-teal);
+  border-radius: 9999px;
+  transition: width 0.5s ease;
+}
+progress::-moz-progress-bar {
+  background-color: var(--color-teal);
+  border-radius: 9999px;
+}
