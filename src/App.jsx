@@ -28,13 +28,8 @@ export default function App() {
       if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
          fetchData();
       } else {
-         // Dummy data for visual presentation locally if no backend provided yet
-         setExpenses([
-           { item: 'Lunch', amount: 1500, category: 'Food', date: '2026-03-20', type: 'expense' },
-           { item: 'Salary', amount: 120000, category: 'Income', date: '2026-03-19', type: 'income' },
-           { item: 'Dinner', amount: 2000, category: 'Food', date: '2026-03-19', type: 'expense' },
-           { item: 'Tea', amount: 400, category: 'Drink', date: '2026-03-18', type: 'expense' }
-         ]);
+         // Start with empty data
+         setExpenses([]);
       }
     }
   }, [isAuthenticated]);
